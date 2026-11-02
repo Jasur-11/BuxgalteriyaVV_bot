@@ -31,8 +31,10 @@ dp.include_router(shartnoma_handlers.router)
 dp.include_router(spets_handlers.router)
 dp.include_router(drugs_handlers.router)
 
+
 # --- Flask (Render uchun "health check") ---
 web_app = Flask(__name__)
+
 
 @web_app.route("/")
 @web_app.route("/health")
@@ -43,11 +45,20 @@ def health():
 def run_bot():
     """Telegram botni alohida oqimda ishga tushirish."""
     async def main():
-        await init_db()
-        # Webhook'ni o'chirib, eski xabarlarni tozalaymiz
-        await bot.delete_webhook(drop_pending_updates=True)
-        logger.info("Telegram bot polling boshlandi...")
-        await dp.start_polling(bot, drop_pending_updates=True)
+        try:
+            await init_db()
+            # Webhook'ni o'chirib, eski xabarlarni tozalaymiz
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Telegram bot polling boshlandi...")
+            
+            # handle_signals=False qo'shildi
+            await dp.start_polling(
+                bot,
+                drop_pending_updates=True,
+                handle_signals=False,
+            )
+        except Exception as e:
+            logger.error(f"Bot ishga tushishda xato: {e}")
 
     asyncio.run(main())
 
