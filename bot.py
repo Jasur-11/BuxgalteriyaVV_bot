@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import os
+import threading
 
-from aiogram import Bot, Dispatcher
+from aiogram import Dispatcher
+from flask import Flask
 
 from app.bot_instance import bot
 from app.database.base import init_db
@@ -16,8 +19,8 @@ from app.middlewares.auth import AuthMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Aiogram sozlamalari ---
 dp = Dispatcher()
-
 dp.message.middleware(AuthMiddleware())
 dp.callback_query.middleware(AuthMiddleware())
 
@@ -28,29 +31,33 @@ dp.include_router(shartnoma_handlers.router)
 dp.include_router(spets_handlers.router)
 dp.include_router(drugs_handlers.router)
 
+# --- Flask (Render uchun "health check") ---
+web_app = Flask(__name__)
 
-async def main():
-    await init_db()
+@web_app.route("/")
+@web_app.route("/health")
+def health():
+    return "Bot is running", 200
 
-    # Webhook'ni o'chirish (agar o'rnatilgan bo'lsa)
-    try:
+
+def run_bot():
+    """Telegram botni alohida oqimda ishga tushirish."""
+    async def main():
+        await init_db()
+        # Webhook'ni o'chirib, eski xabarlarni tozalaymiz
         await bot.delete_webhook(drop_pending_updates=True)
-        logger.info("Webhook o'chirildi, eski xabarlar tozalandi")
-    except Exception as e:
-        logger.warning(f"Webhook o'chirishda xato: {e}")
+        logger.info("Telegram bot polling boshlandi...")
+        await dp.start_polling(bot, drop_pending_updates=True)
 
-    # Polling boshlash
-    while True:
-        try:
-            await dp.start_polling(
-                bot,
-                drop_pending_updates=True,
-                allowed_updates=dp.resolve_used_update_types(),
-            )
-        except Exception as e:
-            logger.error(f"Polling xatosi: {e}")
-            await asyncio.sleep(5)
+    asyncio.run(main())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Botni fonda ishga tushirish
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    # Flask serverni Render bergan PORT'da ishga tushirish
+    port = int(os.environ.get("PORT", 8080))
+    logger.info(f"Flask server {port}-portda ishga tushmoqda...")
+    web_app.run(host="0.0.0.0", port=port)
