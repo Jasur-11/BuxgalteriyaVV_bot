@@ -29,21 +29,26 @@ class AuthMiddleware(BaseMiddleware):
     ) -> Any:
         user_id = event.from_user.id
 
+        # Admin — har doim ruxsat
         if user_id in settings.admin_list:
             return await handler(event, data)
 
+        # Foydalanuvchini bazadan tekshiramiz
         async with async_session() as session:
             user = await get_user(session, user_id)
 
+        # Tasdiqlangan — davom etamiz
         if user and user.status == "approved":
             return await handler(event, data)
 
+        # Ro‘yxatdan o‘tish state'ida — ruxsat
         state: FSMContext | None = data.get("state")
         if state is not None:
             current = await state.get_state()
             if current in REGISTER_STATES:
                 return await handler(event, data)
 
+        # /start, /menu, lang:, company: va BEKOR QILISH (cancel) — ruxsat
         if isinstance(event, Message):
             text = event.text or ""
             if text.startswith("/start") or text == "/menu":
@@ -52,9 +57,11 @@ class AuthMiddleware(BaseMiddleware):
             if event.data and (
                 event.data.startswith("lang:")
                 or event.data.startswith("company:")
+                or event.data.endswith(":cancel")
             ):
                 return await handler(event, data)
 
+        # Qolgan hamma narsani bloklaymiz
         if isinstance(event, Message):
             try:
                 await event.answer(
