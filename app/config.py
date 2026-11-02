@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         url = self.database_url
+        
+        # Neon uchun sslmode=require ni olib tashlaymiz
+        if "?sslmode=require" in url:
+            url = url.replace("?sslmode=require", "")
+
         if url.startswith("postgresql+asyncpg://"):
             return url
         if url.startswith("postgresql://"):
