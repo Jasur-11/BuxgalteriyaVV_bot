@@ -122,25 +122,6 @@ async def _show_edit(message: Message, state: FSMContext):
     )
 
 
-async def _cancel_spec(call: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    lang = data.get("lang", "uz")
-    await state.clear()
-    try:
-        await call.message.edit_text(TEXTS[lang]["cancelled"])
-    except Exception:
-        try:
-            await call.message.edit_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        await call.message.answer(TEXTS[lang]["cancelled"])
-    await call.message.answer(TEXTS[lang]["menu"], reply_markup=get_main_menu(lang))
-    try:
-        await call.answer()
-    except Exception:
-        pass
-
-
 @router.message(F.text == "📊 Spetsifikatsiya yaratish")
 async def start_spec_uz(message: Message, state: FSMContext):
     if not await _check_approved(message.from_user.id):
@@ -171,12 +152,29 @@ async def start_spec_ru(message: Message, state: FSMContext):
     await state.set_state(SpetsifikatsiyaForm.company)
 
 
+# --- ASOSIY MUAMMO SHU YERDA EDI: sp:company: dan keyin cancel kelishini oldini olamiz ---
 @router.callback_query(F.data.startswith("sp:company:"))
 async def sp_company(call: CallbackQuery, state: FSMContext):
     if not await _check_approved(call.from_user.id):
         await call.answer("Siz tasdiqlanmagansiz.", show_alert=True)
         return
+    
     key = call.data.split(":", 2)[2]
+    
+    # Agar bekor qilish bosilgan bo'lsa
+    if key == "cancel":
+        data = await state.get_data()
+        lang = data.get("lang", "uz")
+        await state.clear()
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(TEXTS[lang]["cancelled"])
+        await call.message.answer(TEXTS[lang]["menu"], reply_markup=get_main_menu(lang))
+        await call.answer("Bekor qilindi")
+        return
+
     if key not in COMPANIES:
         await call.answer("Noto‘g‘ri kompaniya.", show_alert=True)
         return
@@ -187,6 +185,28 @@ async def sp_company(call: CallbackQuery, state: FSMContext):
         pass
     await _show_drugs(call.message, state)
     await call.answer()
+
+
+@router.callback_query(F.data == "spec:cancel")
+async def spec_cancel(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+    await state.clear()
+
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+
+    try:
+        await call.message.answer(TEXTS[lang]["cancelled"])
+        await call.message.answer(
+            TEXTS[lang]["menu"],
+            reply_markup=get_main_menu(lang),
+        )
+    except Exception:
+        pass
+    await call.answer("Bekor qilindi")
 
 
 @router.message(F.text == "🏠 Menu")
@@ -400,11 +420,6 @@ async def spec_done(call: CallbackQuery, state: FSMContext):
     except Exception:
         await call.message.answer("\n".join(lines), reply_markup=get_confirm_keyboard())
     await call.answer()
-
-
-@router.callback_query(F.data == "spec:cancel")
-async def spec_cancel(call: CallbackQuery, state: FSMContext):
-    await _cancel_spec(call, state)
 
 
 @router.callback_query(F.data == "spec:restart")
