@@ -7,17 +7,22 @@ logger = logging.getLogger(__name__)
 
 def convert_to_pdf(docx_path: Path) -> Path | None:
     output_dir = docx_path.parent
+    
+    # PDF ni "forma" sifatida emas, oddiy hujjat sifatida eksport qilish
+    # Bu matnlarning surilib ketishini oldini oladi
+    cmd = [
+        "libreoffice",
+        "--headless",
+        "--convert-to",
+        "pdf:writer_pdf_Export:{\"ExportFormFields\":false}",
+        "--outdir",
+        str(output_dir),
+        str(docx_path),
+    ]
+    
     try:
         result = subprocess.run(
-            [
-                "libreoffice",
-                "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                str(output_dir),
-                str(docx_path),
-            ],
+            cmd,
             check=True,
             timeout=120,
             stdout=subprocess.PIPE,
